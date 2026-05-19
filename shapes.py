@@ -57,12 +57,12 @@ def create_pyramid(base=1.0, height=1.0):
     for i in range(4):
         v0 = base_verts[i]
         v1 = base_verts[(i + 1) % 4]
-        face_normal = normalize(np.cross(v1 - v0, apex - v0))
+        face_normal = normalize(np.cross(apex - v0, v1 - v0))
 
         base_index = len(vertices)
         vertices += [v0, v1, apex]
         normals += [face_normal, face_normal, face_normal]
-        indices += [base_index, base_index + 1, base_index + 2]
+        indices += [base_index, base_index + 2, base_index + 1]
 
     return Mesh(vertices, normals, indices)
 

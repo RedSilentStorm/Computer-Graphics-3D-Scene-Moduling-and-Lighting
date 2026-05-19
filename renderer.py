@@ -31,6 +31,11 @@ class Renderer:
         self.light_marker_mesh = create_octahedron(0.25)
         self.show_overlay = True
 
+        self.fps = 0
+        self._overlay_surface = None
+        self._overlay_dirty = True
+        self._overlay_frame = 0
+
         self.ambient_light = AmbientLight(color=vec3(0.12, 0.12, 0.12))
         self.point_light = PointLight(
             position=vec3(0.0, 4.5, 0.0),
@@ -135,11 +140,9 @@ class Renderer:
         cube = Object3D(create_cube(1.2), cube_material, position=positions[0], rotation=[0.0, 25.0, 0.0])
         sphere = Object3D(create_sphere(0.9, stacks=12, slices=16), shiny_material, position=positions[1], rotation=[0.0, 0.0, 0.0])
         pyramid = Object3D(create_pyramid(1.4, 1.2), pyramid_material, position=positions[2], rotation=[0.0, -30.0, 0.0])
-        octa = Object3D(create_octahedron(1.0), matte_material, position=positions[3], rotation=[0.0, 35.0, 0.0])
         capsule1 = Object3D(create_capsule(0.5, 1.4, segments=12, rings=3), pyramid_material, position=positions[4], rotation=[0.0, -30.0, 0.0])
-        capsule2 = Object3D(create_capsule(0.6, 1.0, segments=12, rings=3), matte_material, position=positions[5], rotation=[90.0, 35.0, 0.0])
 
-        self.objects = [cube, sphere, pyramid, octa, capsule1, capsule2]
+        self.objects = [cube, sphere, pyramid, capsule1]
 
     def handle_input(self, dt):
         input_state = {
@@ -254,35 +257,44 @@ class Renderer:
         if self.show_overlay:
             self.draw_overlay()
 
-    def draw_overlay(self):
+    def _build_overlay(self):
         lines = [
+            f"FPS:     {self.fps}",
             "Lights:",
             f"Ambient: {'ON' if self.ambient_light.enabled else 'OFF'}",
             f"Point:   {'ON' if self.point_light.enabled else 'OFF'} pos={self.point_light.position}",
             f"Dir:     {'ON' if self.directional_light.enabled else 'OFF'} dir={self.directional_light.direction}",
             "Toggle:  1=Ambient  2=Point  3=Directional  H=Panel",
         ]
+        line_height = 22
+        panel_width = 520
+        panel_height = line_height * len(lines) + 8
+        panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+        panel.fill((255, 255, 255, 210))
+        y = 4
+        for line in lines:
+            text_surface = self.overlay_font.render(line, True, (30, 30, 30))
+            panel.blit(text_surface, (8, y))
+            y += line_height
+        self._overlay_surface = (panel, panel_width, panel_height)
+
+    def draw_overlay(self):
+        self._overlay_frame += 1
+        if self._overlay_dirty or self._overlay_frame >= 15:
+            self._build_overlay()
+            self._overlay_dirty = False
+            self._overlay_frame = 0
+
+        panel, panel_width, panel_height = self._overlay_surface
 
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_CULL_FACE)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-        line_height = 22
-        panel_width = 520
-        panel_height = line_height * len(lines) + 8
-        panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
-        panel.fill((255, 255, 255, 210))
-
-        y = 4
-        for line in lines:
-            text_surface = self.overlay_font.render(line, True, (30, 30, 30))
-            panel.blit(text_surface, (8, y))
-            y += line_height
-
         text_data = pygame.image.tostring(panel, "RGBA", True)
         glWindowPos2f(16, self.height - panel_height - 12)
-        glDrawPixels(panel.get_width(), panel.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, text_data)
+        glDrawPixels(panel_width, panel_height, GL_RGBA, GL_UNSIGNED_BYTE, text_data)
 
         glDisable(GL_BLEND)
         glEnable(GL_CULL_FACE)
@@ -335,8 +347,16 @@ class Renderer:
 
         while self.running:
             dt = clock.tick(60) / 1000.0
+            new_fps = int(clock.get_fps())
+            if new_fps != self.fps:
+                self.fps = new_fps
+                self._overlay_dirty = True
+
+            prev_states = (self.ambient_light.enabled, self.point_light.enabled, self.directional_light.enabled)
             self.handle_events()
             self.handle_input(dt)
+            if (self.ambient_light.enabled, self.point_light.enabled, self.directional_light.enabled) != prev_states:
+                self._overlay_dirty = True
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
             self.set_camera()
