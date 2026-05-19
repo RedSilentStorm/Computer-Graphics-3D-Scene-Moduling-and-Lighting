@@ -10,6 +10,7 @@ class Camera:
         self.pitch = pitch
         self.move_speed = 4.0
         self.turn_speed = 60.0
+        self.mouse_sensitivity = 0.12
 
     def get_forward(self):
         rad_yaw = np.radians(self.yaw)
@@ -39,6 +40,8 @@ class Camera:
 
         self.yaw += input_state["turn_x"] * self.turn_speed * dt
         self.pitch += input_state["turn_y"] * self.turn_speed * dt
+        self.yaw += input_state.get("mouse_dx", 0.0) * self.mouse_sensitivity
+        self.pitch -= input_state.get("mouse_dy", 0.0) * self.mouse_sensitivity
         self.pitch = max(-89.0, min(89.0, self.pitch))
 
     def get_view_matrix(self):

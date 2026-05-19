@@ -1,7 +1,7 @@
 import numpy as np
 from OpenGL.GL import glBegin, glEnd, glColor4f, glVertex3f, glNormal3f, glPushMatrix, glPopMatrix, glMultMatrixf, GL_TRIANGLES
 
-from utils import compose_matrix, normal_matrix, to_gl_matrix
+from utils import compose_matrix, normal_matrix, to_gl_matrix, normalize
 from lighting import compute_phong
 
 
