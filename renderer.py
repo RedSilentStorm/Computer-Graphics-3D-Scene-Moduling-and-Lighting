@@ -119,12 +119,27 @@ class Renderer:
             alpha=1.0,
         )
 
-        cube = Object3D(create_cube(1.2), cube_material, position=[-2.5, 1.2, -2.0], rotation=[0.0, 25.0, 0.0])
-        sphere = Object3D(create_sphere(0.9), shiny_material, position=[2.0, 1.4, -1.0], rotation=[0.0, 0.0, 0.0])
-        capsule1 = Object3D(create_capsule(0.5, 1.4), pyramid_material, position=[-1.0, 1.4, 2.2], rotation=[0.0, -30.0, 0.0])
-        capsule2 = Object3D(create_capsule(0.6, 1.0), matte_material, position=[2.4, 1.2, 2.0], rotation=[90.0, 35.0, 0.0])
+        # Place objects in a circle (radius=3.5, Y=1.2)
+        radius = 3.5
+        y_pos = 1.2
+        
+        # 6 objects at 60-degree intervals
+        angles = [0, 60, 120, 180, 240, 300]
+        positions = []
+        for angle in angles:
+            rad = np.radians(angle)
+            x = radius * np.cos(rad)
+            z = radius * np.sin(rad)
+            positions.append([x, y_pos, z])
+        
+        cube = Object3D(create_cube(1.2), cube_material, position=positions[0], rotation=[0.0, 25.0, 0.0])
+        sphere = Object3D(create_sphere(0.9, stacks=12, slices=16), shiny_material, position=positions[1], rotation=[0.0, 0.0, 0.0])
+        pyramid = Object3D(create_pyramid(1.4, 1.2), pyramid_material, position=positions[2], rotation=[0.0, -30.0, 0.0])
+        octa = Object3D(create_octahedron(1.0), matte_material, position=positions[3], rotation=[0.0, 35.0, 0.0])
+        capsule1 = Object3D(create_capsule(0.5, 1.4, segments=12, rings=3), pyramid_material, position=positions[4], rotation=[0.0, -30.0, 0.0])
+        capsule2 = Object3D(create_capsule(0.6, 1.0, segments=12, rings=3), matte_material, position=positions[5], rotation=[90.0, 35.0, 0.0])
 
-        self.objects = [cube, sphere, capsule1, capsule2]
+        self.objects = [cube, sphere, pyramid, octa, capsule1, capsule2]
 
     def handle_input(self, dt):
         input_state = {

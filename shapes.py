@@ -51,7 +51,7 @@ def create_pyramid(base=1.0, height=1.0):
     for v in base_verts:
         vertices.append(v)
         normals.append(base_normal)
-    indices += [base_index, base_index + 2, base_index + 1, base_index, base_index + 3, base_index + 2]
+    indices += [base_index, base_index + 1, base_index + 2, base_index, base_index + 2, base_index + 3]
 
     # Side faces
     for i in range(4):
@@ -87,7 +87,7 @@ def create_sphere(radius=1.0, stacks=16, slices=24):
         for slice_idx in range(slices):
             first = stack * (slices + 1) + slice_idx
             second = first + slices + 1
-            indices += [first, second, first + 1, second, second + 1, first + 1]
+            indices += [first, first + 1, second + 1, first, second + 1, second]
 
     return Mesh(vertices, normals, indices)
 
@@ -120,7 +120,7 @@ def create_capsule(radius=1.0, height=2.0, segments=16, rings=4):
             c = (ring + 1) * segments + seg
             d = (ring + 1) * segments + (seg + 1) % segments
             
-            indices += [a, c, b, b, c, d]
+            indices += [a, b, d, a, d, c]
     
     # Cylinder
     cyl_base = len(vertices)
@@ -144,7 +144,7 @@ def create_capsule(radius=1.0, height=2.0, segments=16, rings=4):
         c = a + 1
         d = b + 1
         
-        indices += [a, c, d, a, d, b]
+        indices += [a, b, d, a, d, c]
     
     # Bottom hemisphere
     bot_base = len(vertices)
@@ -167,7 +167,7 @@ def create_capsule(radius=1.0, height=2.0, segments=16, rings=4):
             c = bot_base + (ring + 1) * segments + seg
             d = bot_base + (ring + 1) * segments + (seg + 1) % segments
             
-            indices += [a, b, c, b, d, c]
+            indices += [a, b, d, a, d, c]
     
     return Mesh(vertices, normals, indices)
 
@@ -191,13 +191,13 @@ def create_octahedron(size=1.0):
     for i in range(4):
         v0 = ring[i]
         v1 = ring[(i + 1) % 4]
-        face_normal = normalize(np.cross(top - v0, v1 - v0))
+        face_normal = normalize(np.cross(v1 - v0, top - v0))
         base_index = len(vertices)
         vertices += [v0, v1, top]
         normals += [face_normal, face_normal, face_normal]
         indices += [base_index, base_index + 1, base_index + 2]
 
-    # Lower faces (reversed winding for correct normal direction)
+    # Lower faces
     for i in range(4):
         v0 = ring[i]
         v1 = ring[(i + 1) % 4]
@@ -205,7 +205,7 @@ def create_octahedron(size=1.0):
         base_index = len(vertices)
         vertices += [v0, v1, bottom]
         normals += [face_normal, face_normal, face_normal]
-        indices += [base_index, base_index + 2, base_index + 1]
+        indices += [base_index, base_index + 1, base_index + 2]
 
     return Mesh(vertices, normals, indices)
 
