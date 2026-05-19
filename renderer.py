@@ -13,7 +13,7 @@ from OpenGL.GLU import gluPerspective, gluLookAt
 from camera import Camera
 from lighting import Material, AmbientLight, DirectionalLight, PointLight
 from object3d import Object3D
-from shapes import create_cube, create_pyramid, create_sphere, create_octahedron, create_floor, create_walls
+from shapes import create_cube, create_pyramid, create_sphere, create_octahedron, create_capsule, create_floor, create_walls
 from utils import vec3, make_shadow_matrix, compose_matrix, to_gl_matrix
 
 
@@ -52,6 +52,10 @@ class Renderer:
         pygame.display.set_caption("PyOpenGL Phong Scene")
         pygame.font.init()
         self.overlay_font = pygame.font.SysFont("Consolas", 18)
+        
+        # Enable mouse relative mode for camera look
+        pygame.event.set_grab(True)
+        pygame.mouse.set_visible(False)
 
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_CULL_FACE)
@@ -66,12 +70,13 @@ class Renderer:
         self.setup_scene()
 
     def setup_scene(self):
-        # Room materials
+        # Room materials - all fully matte and opaque for lighting testing
         wall_material = Material(
             ambient=vec3(0.15, 0.15, 0.17),
             diffuse=vec3(0.4, 0.4, 0.45),
-            specular=vec3(0.05, 0.05, 0.05),
-            shininess=4.0,
+            specular=vec3(0.0, 0.0, 0.0),
+            shininess=1.0,
+            alpha=1.0,
         )
         floor_material = Material(
             ambient=vec3(0.12, 0.11, 0.1),
@@ -84,38 +89,42 @@ class Renderer:
         self.walls = Object3D(create_walls(12.0, 6.0), wall_material)
         self.floor = Object3D(create_floor(12.0), floor_material)
 
-        # Object materials
+        # Object materials - all fully matte and opaque for lighting testing
         shiny_material = Material(
             ambient=vec3(0.12, 0.1, 0.12),
             diffuse=vec3(0.6, 0.2, 0.7),
             specular=vec3(0.0, 0.0, 0.0),
             shininess=1.0,
+            alpha=1.0,
         )
         matte_material = Material(
             ambient=vec3(0.1, 0.12, 0.1),
             diffuse=vec3(0.3, 0.6, 0.2),
             specular=vec3(0.0, 0.0, 0.0),
             shininess=1.0,
+            alpha=1.0,
         )
         cube_material = Material(
             ambient=vec3(0.12, 0.12, 0.1),
             diffuse=vec3(0.6, 0.45, 0.2),
             specular=vec3(0.0, 0.0, 0.0),
             shininess=1.0,
+            alpha=1.0,
         )
         pyramid_material = Material(
             ambient=vec3(0.1, 0.12, 0.16),
             diffuse=vec3(0.2, 0.35, 0.65),
             specular=vec3(0.0, 0.0, 0.0),
             shininess=1.0,
+            alpha=1.0,
         )
 
-        cube = Object3D(create_cube(1.2), cube_material, position=[-2.5, 0.6, -2.0], rotation=[0.0, 25.0, 0.0])
-        sphere = Object3D(create_sphere(0.9), shiny_material, position=[2.0, 1.0, -1.0], rotation=[0.0, 0.0, 0.0])
-        pyramid = Object3D(create_pyramid(1.4, 1.2), pyramid_material, position=[-1.0, 0.0, 2.2], rotation=[0.0, -30.0, 0.0])
-        octa = Object3D(create_octahedron(1.2), matte_material, position=[2.4, 0.6, 2.0], rotation=[0.0, 35.0, 0.0])
+        cube = Object3D(create_cube(1.2), cube_material, position=[-2.5, 1.2, -2.0], rotation=[0.0, 25.0, 0.0])
+        sphere = Object3D(create_sphere(0.9), shiny_material, position=[2.0, 1.4, -1.0], rotation=[0.0, 0.0, 0.0])
+        capsule1 = Object3D(create_capsule(0.5, 1.4), pyramid_material, position=[-1.0, 1.4, 2.2], rotation=[0.0, -30.0, 0.0])
+        capsule2 = Object3D(create_capsule(0.6, 1.0), matte_material, position=[2.4, 1.2, 2.0], rotation=[90.0, 35.0, 0.0])
 
-        self.objects = [cube, sphere, pyramid, octa]
+        self.objects = [cube, sphere, capsule1, capsule2]
 
     def handle_input(self, dt):
         input_state = {
@@ -134,17 +143,15 @@ class Renderer:
         input_state["backward"] = keys[pygame.K_s] or keys[pygame.K_DOWN]
         input_state["left"] = keys[pygame.K_a] or keys[pygame.K_LEFT]
         input_state["right"] = keys[pygame.K_d] or keys[pygame.K_RIGHT]
-        input_state["up"] = keys[pygame.K_e]
-        input_state["down"] = keys[pygame.K_q]
+        input_state["up"] = keys[pygame.K_SPACE]
+        input_state["down"] = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
 
-        if keys[pygame.K_j]:
-            input_state["turn_x"] = -1.0
-        if keys[pygame.K_l]:
-            input_state["turn_x"] = 1.0
-        if keys[pygame.K_i]:
-            input_state["turn_y"] = 1.0
-        if keys[pygame.K_k]:
-            input_state["turn_y"] = -1.0
+        # Mouse look
+        mouse_x, mouse_y = pygame.mouse.get_rel()
+        # Mouse sensitivity scaling
+        mouse_sensitivity = 0.03
+        input_state["turn_x"] = mouse_x * mouse_sensitivity
+        input_state["turn_y"] = -mouse_y * mouse_sensitivity
 
         self.camera.update(dt, input_state)
 
@@ -155,6 +162,8 @@ class Renderer:
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    pygame.event.set_grab(False)
+                    pygame.mouse.set_visible(True)
                     self.running = False
                 if event.key == pygame.K_1:
                     self.ambient_light.enabled = not self.ambient_light.enabled
@@ -219,12 +228,13 @@ class Renderer:
 
     def draw_scene(self):
         self.walls.draw(self.lights, self.camera.position)
-        self.draw_floor()
         self.draw_shadows()
         self.draw_light_markers()
 
         for obj in self.objects:
             obj.draw(self.lights, self.camera.position)
+
+        self.draw_floor()
 
         if self.show_overlay:
             self.draw_overlay()
