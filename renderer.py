@@ -211,23 +211,31 @@ class Renderer:
     def draw_shadows(self):
         if not self.point_light.enabled and not self.directional_light.enabled:
             return
-        plane = np.array([0.0, 1.0, 0.0, 0.0], dtype=np.float32)
+        # Project shadows onto multiple planes: floor and the four walls
+        hs = 6.0 if self.walls is None else float(self.walls.mesh.vertices[2][1]) if False else None
+        # The room size used when creating walls in setup_scene is 12.0, so half-size is 6.0
+        hs = 6.0
+
+        # Define planes with normals (n), d and bounds so we can clip projected points to room extents
+        planes = [
+            { 'n': np.array([0.0, 1.0, 0.0], dtype=np.float32),  'd': 0.0, 'bounds': {'x':(-hs, hs), 'z':(-hs, hs)} },
+            { 'n': np.array([0.0, 0.0, 1.0], dtype=np.float32),  'd': hs,  'bounds': {'x':(-hs, hs), 'y':(0.0, 6.0)} },
+            { 'n': np.array([0.0, 0.0, -1.0], dtype=np.float32), 'd': hs,  'bounds': {'x':(-hs, hs), 'y':(0.0, 6.0)} },
+            { 'n': np.array([1.0, 0.0, 0.0], dtype=np.float32),  'd': hs,  'bounds': {'z':(-hs, hs), 'y':(0.0, 6.0)} },
+            { 'n': np.array([-1.0, 0.0, 0.0], dtype=np.float32), 'd': hs,  'bounds': {'z':(-hs, hs), 'y':(0.0, 6.0)} },
+        ]
+
+        # Prepare light info for projection method
         if self.point_light.enabled:
-            light_pos = np.array([
+            light_info = np.array([
                 self.point_light.position[0],
                 self.point_light.position[1],
                 self.point_light.position[2],
-                1.0,
             ], dtype=np.float32)
+            is_dir = False
         else:
-            # Directional light is represented with w=0 for planar projection
-            light_pos = np.array([
-                -self.directional_light.direction[0],
-                -self.directional_light.direction[1],
-                -self.directional_light.direction[2],
-                0.0,
-            ], dtype=np.float32)
-        shadow_matrix = make_shadow_matrix(plane, light_pos)
+            light_info = { 'direction': np.array(self.directional_light.direction, dtype=np.float32) }
+            is_dir = True
 
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -236,8 +244,10 @@ class Renderer:
         glDepthMask(False)
         glDisable(GL_CULL_FACE)
 
+        # Draw combined shadows by projecting each object's vertices onto the room planes
         for obj in self.objects:
-            obj.draw_shadow(shadow_matrix, alpha=0.45)
+            alpha = 0.45
+            obj.draw_shadow_on_planes(light_info, planes, alpha=alpha)
 
         glEnable(GL_CULL_FACE)
         glDepthMask(True)
