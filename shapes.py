@@ -57,7 +57,7 @@ def create_pyramid(base=1.0, height=1.0):
     for i in range(4):
         v0 = base_verts[i]
         v1 = base_verts[(i + 1) % 4]
-        face_normal = normalize(np.cross(v1 - v0, apex - v0))
+        face_normal = normalize(np.cross(apex - v0, v1 - v0))
 
         base_index = len(vertices)
         vertices += [v0, v1, apex]
@@ -111,7 +111,7 @@ def create_octahedron(size=1.0):
     for i in range(4):
         v0 = ring[i]
         v1 = ring[(i + 1) % 4]
-        face_normal = normalize(np.cross(v1 - v0, top - v0))
+        face_normal = normalize(np.cross(top - v0, v1 - v0))
         base_index = len(vertices)
         vertices += [v0, v1, top]
         normals += [face_normal, face_normal, face_normal]
@@ -121,7 +121,7 @@ def create_octahedron(size=1.0):
     for i in range(4):
         v0 = ring[(i + 1) % 4]
         v1 = ring[i]
-        face_normal = normalize(np.cross(v1 - v0, bottom - v0))
+        face_normal = normalize(np.cross(bottom - v0, v1 - v0))
         base_index = len(vertices)
         vertices += [v0, v1, bottom]
         normals += [face_normal, face_normal, face_normal]
