@@ -6,7 +6,7 @@ from OpenGL.GL import (
     glPushMatrix, glPopMatrix, glMultMatrixf, glColor4f, glVertex3f, glLineWidth,
     GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_DEPTH_TEST, GL_CULL_FACE,
     GL_BACK, GL_BLEND, GL_PROJECTION, GL_MODELVIEW, GL_POLYGON_OFFSET_FILL,
-    GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_RGBA, GL_UNSIGNED_BYTE, GL_TRIANGLES, GL_LINES
+    GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_RGBA, GL_UNSIGNED_BYTE, GL_TRIANGLES, GL_LINES, GL_FRONT_AND_BACK
 )
 from OpenGL.GLU import gluPerspective, gluLookAt
 
@@ -30,6 +30,7 @@ class Renderer:
         self.walls = None
         self.light_marker_mesh = create_octahedron(0.25)
         self.show_overlay = True
+        self.show_light_lines = True
 
         self.fps = 0
         self._overlay_surface = None
@@ -114,13 +115,20 @@ class Renderer:
             diffuse=vec3(0.6, 0.45, 0.2),
             specular=vec3(0.0, 0.0, 0.0),
             shininess=1.0,
-            alpha=1.0,
+            alpha=0.5,
         )
-        pyramid_material = Material(
+        capsule_material = Material(
             ambient=vec3(0.1, 0.12, 0.16),
             diffuse=vec3(0.2, 0.35, 0.65),
             specular=vec3(0.0, 0.0, 0.0),
             shininess=1.0,
+            alpha=1.0,
+        )
+        pyramid_material = Material(
+            ambient=vec3(0.35, 0.30, 0.12),
+            diffuse=vec3(1.0, 0.95, 0.45),
+            specular=vec3(1.6, 1.6, 1.6),
+            shininess=128.0,
             alpha=1.0,
         )
 
@@ -140,7 +148,7 @@ class Renderer:
         cube = Object3D(create_cube(1.2), cube_material, position=positions[0], rotation=[0.0, 25.0, 0.0])
         sphere = Object3D(create_sphere(0.9, stacks=12, slices=16), shiny_material, position=positions[1], rotation=[0.0, 0.0, 0.0])
         pyramid = Object3D(create_pyramid(1.4, 1.2), pyramid_material, position=positions[2], rotation=[0.0, -30.0, 0.0])
-        capsule1 = Object3D(create_capsule(0.5, 1.4, segments=12, rings=3), pyramid_material, position=positions[4], rotation=[0.0, -30.0, 0.0])
+        capsule1 = Object3D(create_capsule(0.5, 1.4, segments=12, rings=3), capsule_material, position=positions[4], rotation=[0.0, -30.0, 0.0])
 
         self.objects = [cube, sphere, pyramid, capsule1]
 
@@ -191,6 +199,9 @@ class Renderer:
                     self.directional_light.enabled = not self.directional_light.enabled
                 if event.key == pygame.K_h:
                     self.show_overlay = not self.show_overlay
+                if event.key == pygame.K_l:
+                    self.show_light_lines = not self.show_light_lines
+                    self._overlay_dirty = True
 
     def set_camera(self):
         forward = self.camera.get_forward()
@@ -233,14 +244,7 @@ class Renderer:
         glDisable(GL_CULL_FACE)
 
         for obj in self.objects:
-            if self.point_light.enabled:
-                point_info = np.array([
-                    self.point_light.position[0],
-                    self.point_light.position[1],
-                    self.point_light.position[2],
-                ], dtype=np.float32)
-                obj.draw_shadow_on_planes(point_info, planes, alpha=0.45)
-
+            # Render shadows only for the directional light to avoid multiple overlapping shadows
             if self.directional_light.enabled:
                 dir_info = {'direction': np.array(self.directional_light.direction, dtype=np.float32)}
                 obj.draw_shadow_on_planes(dir_info, planes, alpha=0.45)
@@ -255,8 +259,26 @@ class Renderer:
         self.draw_shadows()
         self.draw_light_markers()
 
+        # Draw opaque objects first
+        glEnable(GL_CULL_FACE)
+        glCullFace(GL_BACK)
         for obj in self.objects:
-            obj.draw(self.lights, self.camera.position)
+            if obj.material.alpha >= 1.0:
+                obj.draw(self.lights, self.camera.position)
+
+        # Draw transparent objects last with blend mode
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glDisable(GL_CULL_FACE)
+        glDepthMask(False)
+        for obj in self.objects:
+            if obj.material.alpha < 1.0:
+                obj.draw(self.lights, self.camera.position)
+        glDepthMask(True)
+
+        glEnable(GL_CULL_FACE)
+        glCullFace(GL_BACK)
+        glDisable(GL_BLEND)
 
         self.draw_floor()
 
@@ -266,11 +288,14 @@ class Renderer:
     def _build_overlay(self):
         lines = [
             f"FPS:     {self.fps}",
-            "Lights:",
-            f"Ambient: {'ON' if self.ambient_light.enabled else 'OFF'}",
-            f"Point:   {'ON' if self.point_light.enabled else 'OFF'} pos={self.point_light.position}",
-            f"Dir:     {'ON' if self.directional_light.enabled else 'OFF'} dir={self.directional_light.direction}",
-            "Toggle:  1=Ambient  2=Point  3=Directional  H=Panel",
+            "",
+            "Lights",
+            "-------------------------------------------------",
+            f"Ambient : {'ON' if self.ambient_light.enabled else 'OFF'}",
+            f"Point   : {'ON' if self.point_light.enabled else 'OFF'} pos = {self.point_light.position}",
+            f"Dir     : {'ON' if self.directional_light.enabled else 'OFF'} dir = {self.directional_light.direction}",
+            f"Toggle  : 1 = Ambient  2 = Point  3 = Directional",
+            f"Display : H = Panel    L = Light Lines",
         ]
         line_height = 22
         panel_width = 520
@@ -307,6 +332,9 @@ class Renderer:
         glEnable(GL_DEPTH_TEST)
 
     def draw_light_markers(self):
+        if not self.show_light_lines:
+            return
+        
         marker_color = (1.0, 0.55, 0.1, 1.0)
 
         if self.point_light.enabled:
@@ -316,6 +344,10 @@ class Renderer:
             self.draw_directional_light_lines(self.directional_light.direction, marker_color)
 
     def draw_directional_light_lines(self, direction, color):
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        
         d = np.array(direction, dtype=np.float32)
         d = d / np.linalg.norm(d)
 
@@ -327,30 +359,63 @@ class Renderer:
         up2 = np.cross(right, d)
         up2 /= np.linalg.norm(up2)
 
-        center = -d * 7.0
-        spacing = 2.5
-        line_len = 15.0
-        ah_back = 0.4
-        ah_spread = 0.2
+        source_plane = -d * 7.0
+        line_len = 17.0
 
-        glLineWidth(1.5)
+        # Build a wide ray field instead of a single ray bundle.
+        # This gives the impression of light passing through the whole space.
+        field_radius_right = 14.0
+        field_radius_up = 11.0
+        steps_right = 13
+        steps_up = 11
+
+        glLineWidth(1.1)
         glBegin(GL_LINES)
-        glColor4f(color[0], color[1], color[2], 0.55)
-        for i in range(-2, 3):
-            for j in range(-2, 3):
-                start = center + right * (i * spacing) + up2 * (j * spacing)
-                end = start + d * line_len
+        for i in range(-steps_right, steps_right + 1):
+            for j in range(-steps_up, steps_up + 1):
+                xr = (i / steps_right) * field_radius_right
+                yu = (j / steps_up) * field_radius_up
+
+                start = source_plane + right * xr + up2 * yu
+
+                # Slightly vary the beam direction so it feels like a soft sheet.
+                bend = (np.sin(i * 0.7) + np.cos(j * 0.6)) * 0.02
+                end = start + d * line_len + right * bend * 2.0 + up2 * bend
+
+                edge_fade = 1.0 - min(1.0, (abs(xr) / field_radius_right) ** 1.2 + (abs(yu) / field_radius_up) ** 1.2) * 0.55
+                alpha = 0.03 + 0.12 * edge_fade
+
+                glColor4f(1.0, 1.0, 1.0, alpha)
                 glVertex3f(float(start[0]), float(start[1]), float(start[2]))
                 glVertex3f(float(end[0]), float(end[1]), float(end[2]))
-                tip = end
-                for perp in [right * ah_spread, -right * ah_spread, up2 * ah_spread, -up2 * ah_spread]:
-                    base = tip - d * ah_back + perp
-                    glVertex3f(float(base[0]), float(base[1]), float(base[2]))
-                    glVertex3f(float(tip[0]), float(tip[1]), float(tip[2]))
         glEnd()
+
+        # Add a second softer pass to thicken the field without making it look like a single line.
+        glLineWidth(2.0)
+        glBegin(GL_LINES)
+        for i in range(-steps_right, steps_right + 1, 2):
+            for j in range(-steps_up, steps_up + 1, 2):
+                xr = (i / steps_right) * (field_radius_right * 0.92)
+                yu = (j / steps_up) * (field_radius_up * 0.92)
+                start = source_plane + right * xr + up2 * yu
+                end = start + d * (line_len * 0.98)
+                edge_fade = 1.0 - min(1.0, (abs(xr) / field_radius_right) ** 1.15 + (abs(yu) / field_radius_up) ** 1.15) * 0.65
+                alpha = 0.015 + 0.07 * edge_fade
+                glColor4f(1.0, 1.0, 1.0, alpha)
+                glVertex3f(float(start[0]), float(start[1]), float(start[2]))
+                glVertex3f(float(end[0]), float(end[1]), float(end[2]))
+        glEnd()
+
         glLineWidth(1.0)
+        
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
 
     def draw_marker(self, position, color):
+        glDisable(GL_DEPTH_TEST)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        
         model = compose_matrix(position, [0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
 
         glPushMatrix()
@@ -364,6 +429,9 @@ class Renderer:
         glEnd()
 
         glPopMatrix()
+        
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
 
     def run(self):
         self.initialize()

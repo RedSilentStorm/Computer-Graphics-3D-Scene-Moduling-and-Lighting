@@ -108,10 +108,15 @@ class Object3D:
             light_pos = np.array(light, dtype=np.float32)
 
         # Compute projected positions per vertex: choose closest valid intersection (smallest positive t)
+        # Also remember which plane the best projection belongs to so we can group by plane.
+        projected = [None] * len(world_vertices)
+        projected_plane_idx = [None] * len(world_vertices)
+
         for i, wp in enumerate(world_vertices):
             best = None
             best_t = None
-            for plane in planes:
+            best_plane = None
+            for p_idx, plane in enumerate(planes):
                 n = plane['n']
                 d = plane['d']
 
@@ -124,11 +129,9 @@ class Object3D:
                     if t <= 1e-5:
                         continue
                     ip = wp + r * t
-                    # For directional case t is distance along ray from vertex
                     valid = in_bounds(ip, plane['bounds'])
                     if not valid:
                         continue
-                    # measure by t (smaller t == closer)
                     metric = t
                 else:
                     r = wp - light_pos
@@ -147,30 +150,80 @@ class Object3D:
                 if best is None or metric < best_t:
                     best = ip
                     best_t = metric
+                    best_plane = p_idx
 
             projected[i] = best
+            projected_plane_idx[i] = best_plane
 
-        # Rasterize triangles formed by projected vertices where all three vertices have valid projection
+        # Group projected points by plane so we draw at most one silhouette per plane.
+        groups = {}
+        for i, p in enumerate(projected):
+            if p is None or projected_plane_idx[i] is None:
+                continue
+            groups.setdefault(projected_plane_idx[i], []).append((i, p))
+
         from OpenGL.GL import glBegin, glEnd, glColor4f, glVertex3f, GL_TRIANGLES
 
+        glColor4f(0.0, 0.0, 0.0, alpha)
         glBegin(GL_TRIANGLES)
-        for t_idx in range(0, len(self.mesh.indices), 3):
-            ia = self.mesh.indices[t_idx]
-            ib = self.mesh.indices[t_idx + 1]
-            ic = self.mesh.indices[t_idx + 2]
 
-            pa = projected[ia]
-            pb = projected[ib]
-            pc = projected[ic]
+        def convex_hull_indices_2d(pts2d_with_idx):
+            # pts2d_with_idx: list of (idx, (x,y))
+            pts = [(p[1][0], p[1][1], p[0]) for p in pts2d_with_idx]
+            pts.sort()
 
-            if pa is None and pb is None and pc is None:
+            def cross(o, a, b):
+                return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0])
+
+            lower = []
+            for x, y, oi in pts:
+                while len(lower) >= 2 and cross((lower[-2][0], lower[-2][1]), (lower[-1][0], lower[-1][1]), (x, y)) <= 0:
+                    lower.pop()
+                lower.append((x, y, oi))
+
+            upper = []
+            for x, y, oi in reversed(pts):
+                while len(upper) >= 2 and cross((upper[-2][0], upper[-2][1]), (upper[-1][0], upper[-1][1]), (x, y)) <= 0:
+                    upper.pop()
+                upper.append((x, y, oi))
+
+            hull = lower[:-1] + upper[:-1]
+            return [h[2] for h in hull]
+
+        for plane_idx, items in groups.items():
+            if len(items) < 3:
                 continue
-            # If any vertex missing, skip triangle to avoid stretched artifacts
-            if pa is None or pb is None or pc is None:
+
+            # Build plane-local basis (u,v) for 2D projection
+            plane_n = planes[plane_idx]['n']
+            ref = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+            if abs(float(np.dot(plane_n, ref))) > 0.9:
+                ref = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+            u = np.cross(ref, plane_n)
+            u /= (np.linalg.norm(u) + 1e-9)
+            v = np.cross(plane_n, u)
+            v /= (np.linalg.norm(v) + 1e-9)
+
+            pts2d_with_idx = []
+            idx_to_3d = {}
+            for idx, p3 in items:
+                x = float(np.dot(p3, u))
+                y = float(np.dot(p3, v))
+                pts2d_with_idx.append((idx, (x, y)))
+                idx_to_3d[idx] = p3
+
+            hull_indices = convex_hull_indices_2d(pts2d_with_idx)
+            if len(hull_indices) < 3:
                 continue
 
-            glColor4f(0.0, 0.0, 0.0, alpha)
-            glVertex3f(float(pa[0]), float(pa[1]), float(pa[2]))
-            glVertex3f(float(pb[0]), float(pb[1]), float(pb[2]))
-            glVertex3f(float(pc[0]), float(pc[1]), float(pc[2]))
+            # Emit triangle fan from first hull vertex
+            center_idx = hull_indices[0]
+            for k in range(1, len(hull_indices) - 1):
+                a = idx_to_3d[center_idx]
+                b = idx_to_3d[hull_indices[k]]
+                c = idx_to_3d[hull_indices[k + 1]]
+                glVertex3f(float(a[0]), float(a[1]), float(a[2]))
+                glVertex3f(float(b[0]), float(b[1]), float(b[2]))
+                glVertex3f(float(c[0]), float(c[1]), float(c[2]))
+
         glEnd()
