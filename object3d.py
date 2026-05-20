@@ -101,8 +101,7 @@ class Object3D:
                 dir_vec = light['direction']
             r_dir = np.array(dir_vec, dtype=np.float32)
             r_dir = r_dir / (np.linalg.norm(r_dir) + eps)
-            # rays go from vertex along -direction (from light towards scene)
-            r_dir = -r_dir
+            # ray travels in light's direction (from source toward scene)
 
         else:
             # point light: light is numpy array position

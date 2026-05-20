@@ -225,18 +225,6 @@ class Renderer:
             { 'n': np.array([-1.0, 0.0, 0.0], dtype=np.float32), 'd': hs,  'bounds': {'z':(-hs, hs), 'y':(0.0, 6.0)} },
         ]
 
-        # Prepare light info for projection method
-        if self.point_light.enabled:
-            light_info = np.array([
-                self.point_light.position[0],
-                self.point_light.position[1],
-                self.point_light.position[2],
-            ], dtype=np.float32)
-            is_dir = False
-        else:
-            light_info = { 'direction': np.array(self.directional_light.direction, dtype=np.float32) }
-            is_dir = True
-
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_POLYGON_OFFSET_FILL)
@@ -244,10 +232,18 @@ class Renderer:
         glDepthMask(False)
         glDisable(GL_CULL_FACE)
 
-        # Draw combined shadows by projecting each object's vertices onto the room planes
         for obj in self.objects:
-            alpha = 0.45
-            obj.draw_shadow_on_planes(light_info, planes, alpha=alpha)
+            if self.point_light.enabled:
+                point_info = np.array([
+                    self.point_light.position[0],
+                    self.point_light.position[1],
+                    self.point_light.position[2],
+                ], dtype=np.float32)
+                obj.draw_shadow_on_planes(point_info, planes, alpha=0.45)
+
+            if self.directional_light.enabled:
+                dir_info = {'direction': np.array(self.directional_light.direction, dtype=np.float32)}
+                obj.draw_shadow_on_planes(dir_info, planes, alpha=0.45)
 
         glEnable(GL_CULL_FACE)
         glDepthMask(True)
@@ -317,22 +313,40 @@ class Renderer:
             self.draw_marker(self.point_light.position, marker_color)
 
         if self.directional_light.enabled:
-            # Visualize directional light as a marker outside the room in the opposite direction
-            dir_vec = -self.directional_light.direction
-            pos = dir_vec / np.linalg.norm(dir_vec) * 7.0 + vec3(0.0, 2.5, 0.0)
-            self.draw_marker(pos, marker_color)
-            self.draw_directional_arrow(pos, self.directional_light.direction, marker_color)
+            self.draw_directional_light_lines(self.directional_light.direction, marker_color)
 
-    def draw_directional_arrow(self, origin, direction, color):
-        dir_norm = direction / np.linalg.norm(direction)
-        start = origin
-        end = origin + dir_norm * 2.0
+    def draw_directional_light_lines(self, direction, color):
+        d = np.array(direction, dtype=np.float32)
+        d = d / np.linalg.norm(d)
 
-        glLineWidth(3.0)
+        ref = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        if abs(float(np.dot(d, ref))) > 0.9:
+            ref = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        right = np.cross(d, ref)
+        right /= np.linalg.norm(right)
+        up2 = np.cross(right, d)
+        up2 /= np.linalg.norm(up2)
+
+        center = -d * 7.0
+        spacing = 2.5
+        line_len = 15.0
+        ah_back = 0.4
+        ah_spread = 0.2
+
+        glLineWidth(1.5)
         glBegin(GL_LINES)
-        glColor4f(color[0], color[1], color[2], color[3])
-        glVertex3f(start[0], start[1], start[2])
-        glVertex3f(end[0], end[1], end[2])
+        glColor4f(color[0], color[1], color[2], 0.55)
+        for i in range(-2, 3):
+            for j in range(-2, 3):
+                start = center + right * (i * spacing) + up2 * (j * spacing)
+                end = start + d * line_len
+                glVertex3f(float(start[0]), float(start[1]), float(start[2]))
+                glVertex3f(float(end[0]), float(end[1]), float(end[2]))
+                tip = end
+                for perp in [right * ah_spread, -right * ah_spread, up2 * ah_spread, -up2 * ah_spread]:
+                    base = tip - d * ah_back + perp
+                    glVertex3f(float(base[0]), float(base[1]), float(base[2]))
+                    glVertex3f(float(tip[0]), float(tip[1]), float(tip[2]))
         glEnd()
         glLineWidth(1.0)
 
