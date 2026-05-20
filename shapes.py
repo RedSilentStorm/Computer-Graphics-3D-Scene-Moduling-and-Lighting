@@ -45,9 +45,9 @@ def create_pyramid(base=1.0, height=1.0):
         np.array([-hs, 0.0, hs], dtype=np.float32),
     ]
 
-    # Base (two triangles)
+    # Base (two triangles) - normal facing up
     base_index = len(vertices)
-    base_normal = [0, -1, 0]
+    base_normal = [0, 1, 0]
     for v in base_verts:
         vertices.append(v)
         normals.append(base_normal)
@@ -57,12 +57,12 @@ def create_pyramid(base=1.0, height=1.0):
     for i in range(4):
         v0 = base_verts[i]
         v1 = base_verts[(i + 1) % 4]
-        face_normal = normalize(np.cross(v1 - v0, apex - v0))
+        face_normal = normalize(np.cross(apex - v0, v1 - v0))
 
         base_index = len(vertices)
         vertices += [v0, v1, apex]
         normals += [face_normal, face_normal, face_normal]
-        indices += [base_index, base_index + 1, base_index + 2]
+        indices += [base_index, base_index + 2, base_index + 1]
 
     return Mesh(vertices, normals, indices)
 
@@ -87,8 +87,88 @@ def create_sphere(radius=1.0, stacks=16, slices=24):
         for slice_idx in range(slices):
             first = stack * (slices + 1) + slice_idx
             second = first + slices + 1
-            indices += [first, second, first + 1, second, second + 1, first + 1]
+            indices += [first, first + 1, second + 1, first, second + 1, second]
 
+    return Mesh(vertices, normals, indices)
+
+
+def create_capsule(radius=1.0, height=2.0, segments=16, rings=4):
+    """Create a capsule (cylinder with hemispherical ends)"""
+    vertices = []
+    normals = []
+    indices = []
+    
+    half_height = height * 0.5
+    
+    # Top hemisphere
+    for ring in range(rings + 1):
+        phi = np.pi * ring / (2.0 * rings)
+        for seg in range(segments):
+            theta = 2.0 * np.pi * seg / segments
+            x = radius * np.sin(phi) * np.cos(theta)
+            y = radius * np.cos(phi)
+            z = radius * np.sin(phi) * np.sin(theta)
+            
+            vertices.append([x, half_height + y, z])
+            normals.append(normalize([x, y, z]))
+    
+    # Top hemisphere triangles
+    for ring in range(rings):
+        for seg in range(segments):
+            a = ring * segments + seg
+            b = ring * segments + (seg + 1) % segments
+            c = (ring + 1) * segments + seg
+            d = (ring + 1) * segments + (seg + 1) % segments
+            
+            indices += [a, b, d, a, d, c]
+    
+    # Cylinder
+    cyl_base = len(vertices)
+    for seg in range(segments):
+        theta = 2.0 * np.pi * seg / segments
+        x = radius * np.cos(theta)
+        z = radius * np.sin(theta)
+        
+        # Top ring
+        vertices.append([x, half_height, z])
+        normals.append(normalize([x, 0, z]))
+        
+        # Bottom ring
+        vertices.append([x, -half_height, z])
+        normals.append(normalize([x, 0, z]))
+    
+    # Cylinder triangles
+    for seg in range(segments):
+        a = cyl_base + seg * 2
+        b = cyl_base + ((seg + 1) % segments) * 2
+        c = a + 1
+        d = b + 1
+        
+        indices += [a, b, d, a, d, c]
+    
+    # Bottom hemisphere
+    bot_base = len(vertices)
+    for ring in range(rings + 1):
+        phi = np.pi * ring / (2.0 * rings)
+        for seg in range(segments):
+            theta = 2.0 * np.pi * seg / segments
+            x = radius * np.sin(phi) * np.cos(theta)
+            y = -radius * np.cos(phi)
+            z = radius * np.sin(phi) * np.sin(theta)
+            
+            vertices.append([x, -half_height + y, z])
+            normals.append(normalize([x, y, z]))
+    
+    # Bottom hemisphere triangles
+    for ring in range(rings):
+        for seg in range(segments):
+            a = bot_base + ring * segments + seg
+            b = bot_base + ring * segments + (seg + 1) % segments
+            c = bot_base + (ring + 1) * segments + seg
+            d = bot_base + (ring + 1) * segments + (seg + 1) % segments
+            
+            indices += [a, b, d, a, d, c]
+    
     return Mesh(vertices, normals, indices)
 
 
@@ -119,8 +199,8 @@ def create_octahedron(size=1.0):
 
     # Lower faces
     for i in range(4):
-        v0 = ring[(i + 1) % 4]
-        v1 = ring[i]
+        v0 = ring[i]
+        v1 = ring[(i + 1) % 4]
         face_normal = normalize(np.cross(v1 - v0, bottom - v0))
         base_index = len(vertices)
         vertices += [v0, v1, bottom]
@@ -155,7 +235,6 @@ def create_walls(size=10.0, height=6.0):
         ([[hs, 0.0, hs], [-hs, 0.0, hs], [-hs, h, hs], [hs, h, hs]], [0, 0, -1]),
         ([[-hs, 0.0, hs], [-hs, 0.0, -hs], [-hs, h, -hs], [-hs, h, hs]], [1, 0, 0]),
         ([[hs, 0.0, -hs], [hs, 0.0, hs], [hs, h, hs], [hs, h, -hs]], [-1, 0, 0]),
-        ([[-hs, h, -hs], [hs, h, -hs], [hs, h, hs], [-hs, h, hs]], [0, -1, 0]),
     ]
 
     for wall in walls:

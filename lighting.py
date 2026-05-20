@@ -42,7 +42,6 @@ def reflect(v, n):
 
 def compute_phong(position, normal, view_pos, material, lights):
     n = normalize(normal)
-    v = normalize(view_pos - position)
     color = np.zeros(3, dtype=np.float32)
 
     for light in lights:
@@ -56,13 +55,7 @@ def compute_phong(position, normal, view_pos, material, lights):
         if isinstance(light, DirectionalLight):
             l = normalize(-light.direction)
             ndotl = max(np.dot(n, l), 0.0)
-            if ndotl > 0.0:
-                r = normalize(reflect(-l, n))
-                spec = pow(max(np.dot(r, v), 0.0), material.shininess)
-            else:
-                spec = 0.0
             color += light.diffuse * material.diffuse * ndotl
-            color += light.specular * material.specular * spec
             continue
 
         if isinstance(light, PointLight):
@@ -75,12 +68,6 @@ def compute_phong(position, normal, view_pos, material, lights):
 
             att = 1.0 / (light.attenuation[0] + light.attenuation[1] * dist + light.attenuation[2] * dist * dist)
             ndotl = max(np.dot(n, l), 0.0)
-            if ndotl > 0.0:
-                r = normalize(reflect(-l, n))
-                spec = pow(max(np.dot(r, v), 0.0), material.shininess)
-            else:
-                spec = 0.0
             color += (light.diffuse * material.diffuse * ndotl) * att
-            color += (light.specular * material.specular * spec) * att
 
     return clamp01(color)
