@@ -167,7 +167,7 @@ def create_capsule(radius=1.0, height=2.0, segments=16, rings=4):
             c = bot_base + (ring + 1) * segments + seg
             d = bot_base + (ring + 1) * segments + (seg + 1) % segments
             
-            indices += [a, b, d, a, d, c]
+            indices += [a, d, b, a, c, d]
     
     return Mesh(vertices, normals, indices)
 

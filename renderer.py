@@ -145,6 +145,7 @@ class Renderer:
             z = radius * np.sin(rad)
             positions.append([x, y_pos, z])
         
+        
         cube = Object3D(create_cube(1.2), cube_material, position=positions[0], rotation=[0.0, 25.0, 0.0])
         sphere = Object3D(create_sphere(0.9, stacks=12, slices=16), shiny_material, position=positions[1], rotation=[0.0, 0.0, 0.0])
         pyramid = Object3D(create_pyramid(1.4, 1.2), pyramid_material, position=positions[2], rotation=[0.0, -30.0, 0.0])
