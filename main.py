@@ -2,7 +2,7 @@ from renderer import Renderer
 
 
 def main():
-    app = Renderer(1280, 720)
+    app = Renderer(1920, 1080)
     app.run()
 
 
