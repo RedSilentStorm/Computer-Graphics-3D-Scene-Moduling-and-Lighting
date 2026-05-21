@@ -245,10 +245,11 @@ class Renderer:
         glDisable(GL_CULL_FACE)
 
         for obj in self.objects:
-            # Render shadows only for the directional light to avoid multiple overlapping shadows
             if self.directional_light.enabled:
                 dir_info = {'direction': np.array(self.directional_light.direction, dtype=np.float32)}
                 obj.draw_shadow_on_planes(dir_info, planes, alpha=0.45)
+            if self.point_light.enabled:
+                obj.draw_shadow_on_planes(self.point_light.position, planes, alpha=0.35)
 
         glEnable(GL_CULL_FACE)
         glDepthMask(True)
@@ -257,6 +258,7 @@ class Renderer:
 
     def draw_scene(self):
         self.walls.draw(self.lights, self.camera.position)
+        self.draw_floor()
         self.draw_shadows()
         self.draw_light_markers()
 
@@ -280,8 +282,6 @@ class Renderer:
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
         glDisable(GL_BLEND)
-
-        self.draw_floor()
 
         if self.show_overlay:
             self.draw_overlay()
