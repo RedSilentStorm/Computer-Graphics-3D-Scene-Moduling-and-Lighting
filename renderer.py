@@ -32,6 +32,7 @@ class Renderer:
         self.show_overlay = True
 
         self.fps = 0
+        self.show_light_markers = True
         self._overlay_surface = None
         self._overlay_dirty = True
         self._overlay_frame = 0
@@ -191,6 +192,9 @@ class Renderer:
                     self.directional_light.enabled = not self.directional_light.enabled
                 if event.key == pygame.K_h:
                     self.show_overlay = not self.show_overlay
+                if event.key == pygame.K_l:
+                    self.show_light_markers = not self.show_light_markers
+                    self._overlay_dirty = True
 
     def set_camera(self):
         forward = self.camera.get_forward()
@@ -253,7 +257,9 @@ class Renderer:
     def draw_scene(self):
         self.walls.draw(self.lights, self.camera.position)
         self.draw_shadows()
-        self.draw_light_markers()
+
+        if self.show_light_markers:
+            self.draw_light_markers()
 
         opaque = [obj for obj in self.objects if obj.material.alpha >= 1.0]
         transparent = [obj for obj in self.objects if obj.material.alpha < 1.0]
@@ -281,7 +287,8 @@ class Renderer:
             f"Ambient: {'ON' if self.ambient_light.enabled else 'OFF'}",
             f"Point:   {'ON' if self.point_light.enabled else 'OFF'} pos={self.point_light.position}",
             f"Dir:     {'ON' if self.directional_light.enabled else 'OFF'} dir={self.directional_light.direction}",
-            "Toggle:  1=Ambient  2=Point  3=Directional  H=Panel",
+            f"Light Lines: {'ON' if self.show_light_markers else 'OFF'}",
+            "Toggle:  1=Ambient  2=Point  3=Directional  L=Light Lines  H=Panel",
         ]
         line_height = 22
         panel_width = 520
