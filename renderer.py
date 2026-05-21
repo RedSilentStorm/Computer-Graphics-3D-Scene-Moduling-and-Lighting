@@ -114,13 +114,13 @@ class Renderer:
             diffuse=vec3(0.6, 0.45, 0.2),
             specular=vec3(0.0, 0.0, 0.0),
             shininess=1.0,
-            alpha=1.0,
+            alpha=0.45,
         )
         pyramid_material = Material(
             ambient=vec3(0.1, 0.12, 0.16),
             diffuse=vec3(0.2, 0.35, 0.65),
-            specular=vec3(0.0, 0.0, 0.0),
-            shininess=1.0,
+            specular=vec3(0.9, 0.9, 1.0),
+            shininess=96.0,
             alpha=1.0,
         )
 
@@ -255,10 +255,21 @@ class Renderer:
         self.draw_shadows()
         self.draw_light_markers()
 
-        for obj in self.objects:
+        opaque = [obj for obj in self.objects if obj.material.alpha >= 1.0]
+        transparent = [obj for obj in self.objects if obj.material.alpha < 1.0]
+
+        for obj in opaque:
             obj.draw(self.lights, self.camera.position)
 
         self.draw_floor()
+
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glDepthMask(False)
+        for obj in transparent:
+            obj.draw(self.lights, self.camera.position)
+        glDepthMask(True)
+        glDisable(GL_BLEND)
 
         if self.show_overlay:
             self.draw_overlay()
